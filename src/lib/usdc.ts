@@ -1,5 +1,6 @@
 import { createPublicClient, http, formatUnits } from 'viem'
 import { ERC20_ABI, getUSDCAddress } from '@/config/tokens'
+import { BRIDGE_RPC_URLS } from '@/config/bridgeKit'
 import { Chain } from 'viem'
 
 /**
@@ -22,10 +23,18 @@ export async function getUSDCBalance(
       return null
     }
 
+    // Get RPC URL - prefer configured URL, fallback to chain default
+    const rpcUrl = BRIDGE_RPC_URLS[chain.id] || chain.rpcUrls.default.http[0]
+    
+    if (!rpcUrl) {
+      console.error(`No RPC URL available for chain ${chain.name} (${chain.id})`)
+      return null
+    }
+
     // Create a public client for reading blockchain data
     const client = createPublicClient({
       chain,
-      transport: http(),
+      transport: http(rpcUrl),
     })
 
     // Read the balance from the USDC contract
@@ -46,9 +55,13 @@ export async function getUSDCBalance(
     // Format the balance (convert from wei-like units to readable number)
     const formattedBalance = formatUnits(balance as bigint, decimals as number)
     
+    console.log(`✅ Balance fetched for ${chain.name}: ${formattedBalance} USDC`)
     return formattedBalance
   } catch (error) {
-    console.error(`Error fetching USDC balance on ${chain.name}:`, error)
+    console.error(`❌ Error fetching USDC balance on ${chain.name} (${chain.id}):`, error)
+    if (error instanceof Error) {
+      console.error(`   Error message: ${error.message}`)
+    }
     return null
   }
 }

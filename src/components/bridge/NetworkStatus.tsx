@@ -3,13 +3,23 @@
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { Network, ChevronDown, ExternalLink } from 'lucide-react'
 import { SUPPORTED_NETWORKS, getNetworkInfo } from '@/config/chains'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function NetworkStatus() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
   const [isNetworkMenuOpen, setIsNetworkMenuOpen] = useState(false)
+
+  // Debug logging (only when values change)
+  useEffect(() => {
+    if (isConnected && address && chainId) {
+      const currentNetwork = getNetworkInfo(chainId)
+      console.log(`🔗 Wallet connected: ${address}`)
+      console.log(`🌐 Chain ID from wallet: ${chainId}`)
+      console.log(`📋 Network:`, currentNetwork ? currentNetwork.chain.name : `Unsupported (${chainId})`)
+    }
+  }, [isConnected, address, chainId])
 
   if (!isConnected || !address) {
     return (
@@ -68,7 +78,7 @@ export default function NetworkStatus() {
                   {currentNetwork.chain.name}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Chain ID: {chainId}
+                  Chain ID: {chainId} {chainId === 12345 && '(Placeholder - update in chains.ts)'}
                 </p>
               </div>
             </div>
