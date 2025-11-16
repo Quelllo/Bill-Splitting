@@ -16,10 +16,10 @@ export const arcTestnet = {
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc.testnet.arc.network'],
+      http: [process.env.NEXT_PUBLIC_ARC_TESTNET_RPC || 'https://rpc.testnet.arc.network'],
     },
     public: {
-      http: ['https://rpc.testnet.arc.network'],
+      http: [process.env.NEXT_PUBLIC_ARC_TESTNET_RPC || 'https://rpc.testnet.arc.network'],
     },
   },
   blockExplorers: {
@@ -42,10 +42,10 @@ export const ethereumSepolia = {
   },
   rpcUrls: {
     default: {
-      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
+      http: [process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com'],
     },
     public: {
-      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
+      http: [process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com'],
     },
   },
   blockExplorers: {

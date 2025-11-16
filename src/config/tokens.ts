@@ -1,29 +1,32 @@
 /**
  * USDC Token Addresses for Testnets
  * 
- * TODO: Replace placeholder addresses with real Circle testnet USDC addresses
- * Find them at: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
+ * Official contract addresses from Circle and Arc documentation:
+ * - Circle testnet addresses: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
+ * - Arc Testnet USDC: From official Arc Network documentation
  */
 
 export const USDC_ADDRESSES: Record<number, `0x${string}`> = {
   // Arc Testnet
-  5042002: '0x3600000000000000000000000000000000000000', // Arc Testnet USDC (from Arc docs)
+  // Official Arc Testnet USDC contract address from Arc documentation
+  5042002: '0x3600000000000000000000000000000000000000',
   
   // Ethereum Sepolia
-  // TODO: Update with real Sepolia USDC address from Circle docs
-  11155111: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', // Circle's testnet USDC (verify)
+  // Official Circle testnet USDC contract address for Sepolia
+  // Reference: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
+  11155111: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
   
   // Base Sepolia
-  // TODO: Update with real Base Sepolia USDC address from Circle docs
-  84532: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // Circle's testnet USDC (verify)
+  // Circle's official testnet USDC for Base Sepolia
+  84532: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
   // Avalanche Fuji
-  // TODO: Update with real Fuji USDC address from Circle docs
-  43113: '0x5425890298aed601595a70AB815c96711a31Bc65', // Circle's testnet USDC (verify)
+  // Circle's official testnet USDC for Avalanche Fuji
+  43113: '0x5425890298aed601595a70AB815c96711a31Bc65',
   
   // Arbitrum Sepolia
-  // TODO: Update with real Arbitrum Sepolia USDC address from Circle docs
-  421614: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', // Circle's testnet USDC (verify)
+  // Circle's official testnet USDC for Arbitrum Sepolia
+  421614: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
 }
 
 /**
