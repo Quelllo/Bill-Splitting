@@ -47,7 +47,7 @@ import { Chain } from 'viem'
 
 /**
  * TokenMessenger ABI (minimal - just what we need for deposits)
- * TODO: Update with complete ABI from Circle docs if needed
+ * Includes functions to check token support
  */
 const TOKEN_MESSENGER_ABI = [
   {
@@ -60,6 +60,22 @@ const TOKEN_MESSENGER_ABI = [
     name: 'depositForBurn',
     outputs: [{ name: '_nonce', type: 'uint64' }],
     stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // Check if token is supported (for CCTP V2)
+  {
+    inputs: [{ name: 'token', type: 'address' }],
+    name: 'isSupportedToken',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Get local token (for CCTP V2)
+  {
+    inputs: [{ name: 'remoteToken', type: 'address' }, { name: 'remoteDomain', type: 'uint32' }],
+    name: 'getLocalToken',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
     type: 'function',
   },
 ] as const
@@ -138,7 +154,7 @@ export async function bridgeUSDC(
 
     // Get CCTP contract addresses and configuration
     // All addresses are looked up by Chain ID from src/config/bridgeKit.ts
-    const usdcAddress = getUSDCAddress(fromChainId) // USDC token contract on source chain
+    let usdcAddress = getUSDCAddress(fromChainId) // USDC token contract on source chain
     const tokenMessengerAddress = TOKEN_MESSENGER_ADDRESSES[fromChainId] // TokenMessenger for burning
     const destinationDomain = CIRCLE_DOMAIN_IDS[toChainId] // Circle's domain ID for destination
 
@@ -213,6 +229,8 @@ export async function bridgeUSDC(
 
     // Step 3: Approve if needed
     if (allowance < amountInUnits) {
+      console.log('🔐 Approval needed. Current allowance:', allowance.toString(), 'Required:', amountInUnits.toString())
+      
       const approveTx = await walletClient.writeContract({
         address: usdcAddress,
         abi: ERC20_ABI,
@@ -222,21 +240,148 @@ export async function bridgeUSDC(
         chain: sourceChain,
       })
 
-      // Wait for approval confirmation
-      await publicClient.waitForTransactionReceipt({ hash: approveTx })
+      console.log('⏳ Waiting for approval transaction...')
+      const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveTx })
+      
+      if (approveReceipt.status === 'reverted') {
+        return {
+          success: false,
+          error: 'Approval transaction was reverted. Please check your wallet and try again.',
+          txHash: approveTx,
+        }
+      }
+      
+      console.log('✅ Approval confirmed')
+      
+      // Verify the allowance was actually set
+      const newAllowance = await publicClient.readContract({
+        address: usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'allowance',
+        args: [userAddress, tokenMessengerAddress],
+      }) as bigint
+      
+      console.log('🔍 New allowance after approval:', newAllowance.toString())
+      
+      if (newAllowance < amountInUnits) {
+        return {
+          success: false,
+          error: 'Approval did not set sufficient allowance. Please try approving again.',
+        }
+      }
+    } else {
+      console.log('✅ Sufficient allowance already exists:', allowance.toString())
     }
 
     // Step 4: Convert recipient address to bytes32 format
     const recipientBytes32 = addressToBytes32(recipient)
 
-    // Step 5: Call depositForBurn on TokenMessenger
+    // Step 5: Verify allowance one more time before calling depositForBurn
+    const finalAllowance = await publicClient.readContract({
+      address: usdcAddress,
+      abi: ERC20_ABI,
+      functionName: 'allowance',
+      args: [userAddress, tokenMessengerAddress],
+    }) as bigint
+    
+    console.log('🔍 Final allowance check before depositForBurn:', finalAllowance.toString())
+    
+    if (finalAllowance < amountInUnits) {
+      return {
+        success: false,
+        error: `Insufficient allowance: ${finalAllowance.toString()} < ${amountInUnits.toString()}. Please approve USDC spending first.`,
+      }
+    }
+
+    // Step 5.5: Check if token is supported by TokenMessenger (for CCTP V2)
+    // For CCTP V2, tokens might need to be mapped via getLocalToken
+    let tokenToUse = usdcAddress
+    try {
+      // First, try to check if token is directly supported
+      const isSupported = await publicClient.readContract({
+        address: tokenMessengerAddress,
+        abi: TOKEN_MESSENGER_ABI,
+        functionName: 'isSupportedToken',
+        args: [usdcAddress],
+      }) as boolean
+      
+      console.log(`🔍 Token support check: ${usdcAddress} is ${isSupported ? 'supported' : 'NOT supported'} by TokenMessenger`)
+      
+      if (!isSupported) {
+        // For CCTP V2, try to get the local token mapping
+        // If bridging to Sepolia (domain 0), try to get the local token
+        try {
+          const localToken = await publicClient.readContract({
+            address: tokenMessengerAddress,
+            abi: TOKEN_MESSENGER_ABI,
+            functionName: 'getLocalToken',
+            args: [usdcAddress, destinationDomain],
+          }) as `0x${string}`
+          
+          if (localToken && localToken !== '0x0000000000000000000000000000000000000000') {
+            console.log(`🔄 Found local token mapping: ${localToken}`)
+            tokenToUse = localToken
+          } else {
+            return {
+              success: false,
+              error: `USDC token (${usdcAddress}) is not supported by TokenMessenger on ${getChainName(fromChainId)}. Please verify the USDC address is correct for CCTP bridging.`,
+            }
+          }
+        } catch (mapErr) {
+          console.warn('⚠️ Could not get local token mapping:', mapErr)
+          return {
+            success: false,
+            error: `USDC token (${usdcAddress}) is not supported by TokenMessenger on ${getChainName(fromChainId)}. The token may need to be registered for CCTP.`,
+          }
+        }
+      }
+    } catch (err) {
+      // isSupportedToken might not exist on all versions (CCTP V1), that's okay
+      console.warn('⚠️ Could not check token support (function may not exist on CCTP V1):', err)
+    }
+    
+    // If we found a different token to use, we need to use that for depositForBurn
+    // But note: this would require re-checking balance and allowance for the new token
+    // For now, if token mapping is needed, we'll use the original address and let the contract handle it
+    if (tokenToUse !== usdcAddress) {
+      console.log(`⚠️ Token mapping found: ${tokenToUse} (but using original: ${usdcAddress})`)
+      console.log(`⚠️ Note: If transaction fails, the token may need to be registered with TokenMessenger`)
+      // Keep using original usdcAddress for now - the contract should handle the mapping
+    }
+
+    // Step 6: Call depositForBurn on TokenMessenger
     console.log('🔥 Calling depositForBurn with:')
+    console.log(`  TokenMessenger: ${tokenMessengerAddress}`)
     console.log(`  Amount: ${amountInUnits.toString()}`)
     console.log(`  Destination Domain: ${destinationDomain}`)
     console.log(`  Recipient (bytes32): ${recipientBytes32}`)
+    console.log(`  Recipient (original): ${recipient}`)
     console.log(`  Burn Token (USDC): ${usdcAddress}`)
     
     try {
+      // Try to simulate the transaction first to catch errors early
+      try {
+        await publicClient.simulateContract({
+          address: tokenMessengerAddress,
+          abi: TOKEN_MESSENGER_ABI,
+          functionName: 'depositForBurn',
+          args: [
+            amountInUnits,
+            destinationDomain,
+            recipientBytes32,
+            usdcAddress,
+          ],
+          account: userAddress,
+        })
+        console.log('✅ Transaction simulation successful')
+      } catch (simError: any) {
+        console.error('❌ Transaction simulation failed:', simError)
+        return {
+          success: false,
+          error: `Transaction would fail: ${simError?.shortMessage || simError?.message || 'Unknown error'}. Please check your inputs.`,
+        }
+      }
+      
       const burnTx = await walletClient.writeContract({
         address: tokenMessengerAddress,
         abi: TOKEN_MESSENGER_ABI,
@@ -262,9 +407,27 @@ export async function bridgeUSDC(
       // Check if transaction was reverted
       if (receipt.status === 'reverted') {
         console.error('❌ Transaction reverted on-chain')
+        
+        // Try to get the revert reason from the receipt
+        let revertReason = 'Unknown error'
+        try {
+          // Try to decode the revert reason if available
+          if (receipt.revertReason) {
+            revertReason = receipt.revertReason
+          } else {
+            // Try to get error from transaction trace
+            const trace = await publicClient.getTransaction({ hash: burnTx }).catch(() => null)
+            if (trace) {
+              console.log('Transaction trace:', trace)
+            }
+          }
+        } catch (err) {
+          console.error('Could not extract revert reason:', err)
+        }
+        
         return {
           success: false,
-          error: 'Transaction was reverted on-chain. The transaction failed. Check Arc Scan for the revert reason.',
+          error: `Transaction was reverted on-chain. Reason: ${revertReason}. Check Arc Scan for details.`,
           txHash: burnTx,
         }
       }

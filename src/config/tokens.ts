@@ -8,7 +8,10 @@
 
 export const USDC_ADDRESSES: Record<number, `0x${string}`> = {
   // Arc Testnet
-  // Official Arc Testnet USDC contract address from Arc documentation
+  // Official USDC address from Circle documentation
+  // Note: On Arc Testnet, USDC is the native currency, and this address represents the USDC token
+  // This address may serve as both the native currency address and the ERC-20 token contract address
+  // Reference: Circle's official documentation for Arc Testnet
   5042002: '0x3600000000000000000000000000000000000000',
   
   // Ethereum Sepolia
