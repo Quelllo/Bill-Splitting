@@ -1,17 +1,32 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Clock, ArrowRight, ExternalLink, History } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Clock, ArrowRight, ExternalLink, History, Trash2 } from 'lucide-react'
 import { useTransfers } from '@/hooks/useTransfers'
-import { formatRelativeTime } from '@/lib/transferStorage'
+import { formatRelativeTime, clearAllTransfers } from '@/lib/transferStorage'
 
 export default function RecentTransfers() {
   const { transfers, isLoading, refresh } = useTransfers()
+  const [isClearing, setIsClearing] = useState(false)
 
   // Refresh on mount to catch any updates from other tabs/windows
   useEffect(() => {
     refresh()
   }, [])
+
+  const handleClearAll = () => {
+    if (window.confirm('Are you sure you want to clear all transfer history? This cannot be undone.')) {
+      setIsClearing(true)
+      try {
+        clearAllTransfers()
+        refresh() // Refresh to update the UI
+      } catch (error) {
+        console.error('Failed to clear transfers:', error)
+      } finally {
+        setIsClearing(false)
+      }
+    }
+  }
 
   if (isLoading) {
     return (
@@ -56,10 +71,23 @@ export default function RecentTransfers() {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-        <History className="w-5 h-5" />
-        Recent Transfers
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <History className="w-5 h-5" />
+          Recent Transfers
+        </h2>
+        {transfers.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            disabled={isClearing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Clear all transfer history"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isClearing ? 'Clearing...' : 'Clear All'}
+          </button>
+        )}
+      </div>
 
       {/* Transfers List */}
       <div className="space-y-3">

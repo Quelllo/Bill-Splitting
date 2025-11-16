@@ -16,7 +16,7 @@ type TransferStatus = 'idle' | 'preparing' | 'awaiting_approval' | 'in_transit' 
 export default function MoveUSDCFlow() {
   const { address, isConnected, chain: connectedChain } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { balances } = useUSDCBalances()
+  const { balances, refresh: refreshBalances } = useUSDCBalances()
   const { addTransfer } = useTransfers()
 
   // Form state
@@ -44,6 +44,25 @@ export default function MoveUSDCFlow() {
       }
     }
   }, [connectedChain, fromChainId])
+
+  // Refresh component state when wallet connects/disconnects
+  useEffect(() => {
+    if (isConnected && address && walletClient) {
+      console.log('✅ Wallet connected and ready:', { address, walletClient: !!walletClient })
+      // Refresh balances when wallet connects
+      refreshBalances()
+      // Reset any error states when wallet connects
+      if (status === 'error' && errorMessage.includes('Wallet')) {
+        setStatus('idle')
+        setErrorMessage('')
+      }
+    } else if (!isConnected) {
+      console.log('🔌 Wallet disconnected')
+      // Reset form when wallet disconnects
+      setStatus('idle')
+      setErrorMessage('')
+    }
+  }, [isConnected, address, walletClient, status, errorMessage, refreshBalances])
 
   // Show all networks in "to" dropdown (validation will prevent same-chain bridging)
   // This allows users to see all options, but they'll get a clear error if they select the same chain
@@ -96,8 +115,56 @@ export default function MoveUSDCFlow() {
 
   // Handle bridge transaction
   const handleBridge = async () => {
-    if (!validation.isValid || !walletClient || !address || !fromChainId || !toChainId) return
+    console.log('🔵 handleBridge called')
+    console.log('  validation.isValid:', validation.isValid)
+    console.log('  isConnected:', isConnected)
+    console.log('  walletClient:', walletClient ? 'exists' : 'missing')
+    console.log('  address:', address)
+    console.log('  fromChainId:', fromChainId)
+    console.log('  toChainId:', toChainId)
+    
+    // Check each condition and log what's missing
+    if (!validation.isValid) {
+      console.error('❌ Validation failed:', validation.error)
+      setStatus('error')
+      setErrorMessage(validation.error || 'Please check your inputs')
+      return
+    }
+    
+    // Check connection status first
+    if (!isConnected) {
+      console.error('❌ Wallet not connected')
+      setStatus('error')
+      setErrorMessage('Please connect your wallet first.')
+      return
+    }
+    
+    if (!address) {
+      console.error('❌ No wallet address')
+      setStatus('error')
+      setErrorMessage('No wallet address found. Please reconnect your wallet.')
+      return
+    }
+    
+    if (!fromChainId || !toChainId) {
+      console.error('❌ Missing chain IDs:', { fromChainId, toChainId })
+      setStatus('error')
+      setErrorMessage('Please select both source and destination networks.')
+      return
+    }
+    
+    // walletClient might not be immediately available, try to get it
+    let client = walletClient
+    if (!client) {
+      console.warn('⚠️ walletClient not available, trying to get it...')
+      // Sometimes walletClient needs a moment to be ready
+      // Try waiting a bit or check if we can proceed
+      setStatus('error')
+      setErrorMessage('Wallet client is not ready. Please try disconnecting and reconnecting your wallet, then try again.')
+      return
+    }
 
+    console.log('✅ All checks passed, starting bridge...')
     setStatus('preparing')
     setErrorMessage('')
     setTxHash(null)
@@ -121,7 +188,7 @@ export default function MoveUSDCFlow() {
           sourceChain: fromNetwork.chain,
           destinationChain: toNetwork.chain,
         },
-        walletClient
+        client
       )
 
       if (result.success && result.txHash) {
@@ -172,6 +239,13 @@ export default function MoveUSDCFlow() {
     setErrorMessage('')
     setTxHash(null)
     setAmount('')
+  }
+
+  // Quick reset - just reset status to allow new transfers (keep form values)
+  const quickReset = () => {
+    setStatus('idle')
+    setErrorMessage('')
+    // Keep form values so user doesn't have to re-enter
   }
 
   const fromNetwork = fromChainId ? getNetworkInfo(fromChainId) : null
@@ -427,22 +501,42 @@ export default function MoveUSDCFlow() {
       {/* Action Button */}
       {status === 'idle' && (
         <button
-          onClick={handleBridge}
-          disabled={!validation.isValid}
+          onClick={(e) => {
+            e.preventDefault()
+            console.log('🟢 Button clicked!')
+            console.log('  Button disabled?', !validation.isValid)
+            console.log('  Current validation:', validation)
+            handleBridge()
+          }}
+          disabled={!validation.isValid || !isConnected || !walletClient}
           className={`w-full py-4 rounded-lg font-semibold text-white transition-colors ${
             validation.isValid
-              ? 'bg-primary-600 hover:bg-primary-700'
+              ? 'bg-primary-600 hover:bg-primary-700 active:bg-primary-800'
               : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
           }`}
         >
-          {validation.isValid ? (
+          {validation.isValid && isConnected && walletClient ? (
             <span className="flex items-center justify-center gap-2">
               <Zap className="w-5 h-5" />
               Move USDC
             </span>
+          ) : !isConnected ? (
+            <span className="text-gray-500 dark:text-gray-400">Please connect your wallet</span>
+          ) : !walletClient ? (
+            <span className="text-gray-500 dark:text-gray-400">Wallet initializing...</span>
           ) : (
-            validation.error
+            <span className="text-gray-500 dark:text-gray-400">{validation.error}</span>
           )}
+        </button>
+      )}
+
+      {/* Reset Button - Show when status is stuck */}
+      {status !== 'idle' && status !== 'error' && (
+        <button
+          onClick={quickReset}
+          className="w-full py-3 rounded-lg font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        >
+          Reset Form (Try Again)
         </button>
       )}
 

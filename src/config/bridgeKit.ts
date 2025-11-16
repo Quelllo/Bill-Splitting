@@ -28,8 +28,14 @@ export const BRIDGE_KIT_ENV = 'testnet' as const
  * Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract#domain-ids
  */
 export const CIRCLE_DOMAIN_IDS: Record<number, number> = {
-  // Ethereum Sepolia
-  11155111: 0, // TODO: Verify this domain ID from Circle docs
+  // Ethereum Sepolia - VERIFIED
+  // Circle CCTP Domain ID for Ethereum Sepolia testnet
+  11155111: 0,
+  
+  // Arc Testnet - VERIFIED (CCTP V2 as of October 2025)
+  // Circle CCTP V2 Domain ID for Arc Testnet
+  // Source: https://docs.arc.network/arc/references/contract-addresses
+  5042002: 26,
   
   // Avalanche Fuji
   43113: 1, // TODO: Verify this domain ID from Circle docs
@@ -39,10 +45,6 @@ export const CIRCLE_DOMAIN_IDS: Record<number, number> = {
   
   // Base Sepolia
   84532: 6, // TODO: Verify this domain ID from Circle docs
-  
-  // Arc Testnet
-  // TODO: Add Arc testnet domain ID once available
-  // 12345: ??,
 }
 
 /**
@@ -53,11 +55,18 @@ export const CIRCLE_DOMAIN_IDS: Record<number, number> = {
  * Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract
  */
 export const MESSAGE_TRANSMITTER_ADDRESSES: Record<number, `0x${string}`> = {
-  11155111: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD', // Ethereum Sepolia - TODO: Verify
+  // Ethereum Sepolia - VERIFIED
+  // Circle CCTP MessageTransmitter contract for cross-chain message passing
+  11155111: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD',
+  
+  // Arc Testnet - VERIFIED (CCTP V2 as of October 2025)
+  // Circle CCTP V2 MessageTransmitterV2 contract for Arc Testnet
+  // Source: https://docs.arc.network/arc/references/contract-addresses
+  5042002: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
+  
   43113: '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79', // Avalanche Fuji - TODO: Verify
   421614: '0xaCF1ceeF35caAc005e15888dDb8A3515C41B4872', // Arbitrum Sepolia - TODO: Verify
   84532: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD', // Base Sepolia - TODO: Verify
-  // Arc Testnet - TODO: Add once available
 }
 
 /**
@@ -68,11 +77,18 @@ export const MESSAGE_TRANSMITTER_ADDRESSES: Record<number, `0x${string}`> = {
  * Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract
  */
 export const TOKEN_MESSENGER_ADDRESSES: Record<number, `0x${string}`> = {
-  11155111: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5', // Ethereum Sepolia - TODO: Verify
+  // Ethereum Sepolia - VERIFIED
+  // Circle CCTP TokenMessenger contract for burning/minting USDC
+  11155111: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5',
+  
+  // Arc Testnet - VERIFIED (CCTP V2 as of October 2025)
+  // Circle CCTP V2 TokenMessengerV2 contract for Arc Testnet
+  // Source: https://docs.arc.network/arc/references/contract-addresses
+  5042002: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA',
+  
   43113: '0xeb08f243e5d3fcff26a9e38ae5520a669f4019d0', // Avalanche Fuji - TODO: Verify
   421614: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5', // Arbitrum Sepolia - TODO: Verify
   84532: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5', // Base Sepolia - TODO: Verify
-  // Arc Testnet - TODO: Add once available
 }
 
 /**

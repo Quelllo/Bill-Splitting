@@ -9,8 +9,19 @@
  * 3. Wait for attestation from Circle's attestation service
  * 4. Call receiveMessage() on destination chain (mints USDC)
  * 
- * NOTE: This is a simplified implementation. Circle's Bridge Kit SDK may provide
- * higher-level abstractions. Adjust based on the actual SDK documentation.
+ * CHAIN CONFIGURATION:
+ * All CCTP configuration is managed via Chain IDs in src/config/bridgeKit.ts:
+ * 
+ * - Ethereum Sepolia (11155111): CCTP Domain 0
+ * - Arc Testnet (5042002): CCTP Domain 26
+ * 
+ * The bridgeUSDC function uses Chain IDs to look up:
+ * - CIRCLE_DOMAIN_IDS: Maps Chain ID → CCTP Domain ID
+ * - TOKEN_MESSENGER_ADDRESSES: Maps Chain ID → TokenMessenger contract
+ * - MESSAGE_TRANSMITTER_ADDRESSES: Maps Chain ID → MessageTransmitter contract
+ * - USDC_ADDRESSES (from tokens.ts): Maps Chain ID → USDC token contract
+ * 
+ * All CCTP contracts are called directly - no external Bridge Kit SDK needed.
  */
 
 import { 
@@ -125,15 +136,37 @@ export async function bridgeUSDC(
       }
     }
 
-    // Get contract addresses
-    const usdcAddress = getUSDCAddress(fromChainId)
-    const tokenMessengerAddress = TOKEN_MESSENGER_ADDRESSES[fromChainId]
-    const destinationDomain = CIRCLE_DOMAIN_IDS[toChainId]
+    // Get CCTP contract addresses and configuration
+    // All addresses are looked up by Chain ID from src/config/bridgeKit.ts
+    const usdcAddress = getUSDCAddress(fromChainId) // USDC token contract on source chain
+    const tokenMessengerAddress = TOKEN_MESSENGER_ADDRESSES[fromChainId] // TokenMessenger for burning
+    const destinationDomain = CIRCLE_DOMAIN_IDS[toChainId] // Circle's domain ID for destination
 
     if (!usdcAddress || !tokenMessengerAddress || destinationDomain === undefined) {
       return {
         success: false,
         error: 'Bridge configuration not available for selected chains',
+      }
+    }
+
+    console.log('🌉 Bridge Configuration:')
+    console.log(`  Source: ${getChainName(fromChainId)} (Chain ID: ${fromChainId})`)
+    console.log(`  Destination: ${getChainName(toChainId)} (Chain ID: ${toChainId}, Domain: ${destinationDomain})`)
+    console.log(`  USDC: ${usdcAddress}`)
+    console.log(`  TokenMessenger: ${tokenMessengerAddress}`)
+    
+    // Verify contract addresses are not zero addresses
+    if (usdcAddress === '0x0000000000000000000000000000000000000000') {
+      return {
+        success: false,
+        error: `USDC address not configured for ${getChainName(fromChainId)}`,
+      }
+    }
+    
+    if (tokenMessengerAddress === '0x0000000000000000000000000000000000000000') {
+      return {
+        success: false,
+        error: `TokenMessenger address not configured for ${getChainName(fromChainId)}`,
       }
     }
 
@@ -197,26 +230,77 @@ export async function bridgeUSDC(
     const recipientBytes32 = addressToBytes32(recipient)
 
     // Step 5: Call depositForBurn on TokenMessenger
-    const burnTx = await walletClient.writeContract({
-      address: tokenMessengerAddress,
-      abi: TOKEN_MESSENGER_ABI,
-      functionName: 'depositForBurn',
-      args: [
-        amountInUnits,
-        destinationDomain,
-        recipientBytes32,
-        usdcAddress,
-      ],
-      account: userAddress,
-      chain: sourceChain,
-    })
+    console.log('🔥 Calling depositForBurn with:')
+    console.log(`  Amount: ${amountInUnits.toString()}`)
+    console.log(`  Destination Domain: ${destinationDomain}`)
+    console.log(`  Recipient (bytes32): ${recipientBytes32}`)
+    console.log(`  Burn Token (USDC): ${usdcAddress}`)
+    
+    try {
+      const burnTx = await walletClient.writeContract({
+        address: tokenMessengerAddress,
+        abi: TOKEN_MESSENGER_ABI,
+        functionName: 'depositForBurn',
+        args: [
+          amountInUnits,
+          destinationDomain,
+          recipientBytes32,
+          usdcAddress,
+        ],
+        account: userAddress,
+        chain: sourceChain,
+      })
 
-    // Wait for burn transaction to be confirmed
-    await publicClient.waitForTransactionReceipt({ hash: burnTx })
+      console.log('✅ Burn transaction submitted:', burnTx)
 
-    return {
-      success: true,
-      txHash: burnTx,
+      // Wait for burn transaction to be confirmed
+      console.log('⏳ Waiting for transaction confirmation...')
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: burnTx })
+      console.log('📋 Transaction receipt:', receipt)
+      console.log('📊 Transaction status:', receipt.status)
+      
+      // Check if transaction was reverted
+      if (receipt.status === 'reverted') {
+        console.error('❌ Transaction reverted on-chain')
+        return {
+          success: false,
+          error: 'Transaction was reverted on-chain. The transaction failed. Check Arc Scan for the revert reason.',
+          txHash: burnTx,
+        }
+      }
+
+      console.log('✅ Transaction confirmed successfully!')
+      return {
+        success: true,
+        txHash: burnTx,
+      }
+    } catch (writeError: any) {
+      // Enhanced error handling for contract write failures
+      console.error('❌ depositForBurn failed:', writeError)
+      
+      let errorMessage = 'Transaction failed'
+      
+      if (writeError?.data?.message) {
+        errorMessage = writeError.data.message
+      } else if (writeError?.message) {
+        errorMessage = writeError.message
+      } else if (writeError?.shortMessage) {
+        errorMessage = writeError.shortMessage
+      }
+      
+      // Common CCTP errors
+      if (errorMessage.includes('allowance') || errorMessage.includes('insufficient')) {
+        errorMessage = 'Insufficient allowance. Please approve USDC spending first.'
+      } else if (errorMessage.includes('balance')) {
+        errorMessage = 'Insufficient USDC balance.'
+      } else if (errorMessage.includes('revert') || errorMessage.includes('execution reverted')) {
+        errorMessage = `Transaction reverted: ${errorMessage}. Check Arc Scan for details.`
+      }
+      
+      return {
+        success: false,
+        error: errorMessage,
+      }
     }
 
     // NOTE: In a complete implementation, you would:
@@ -227,11 +311,19 @@ export async function bridgeUSDC(
     // For now, we return after the burn transaction.
     // The minting happens automatically after Circle's attestation (usually 10-20 minutes).
     
-  } catch (error) {
-    console.error('Bridge error:', error)
+  } catch (error: any) {
+    console.error('❌ Bridge error:', error)
+    
+    let errorMessage = 'Unknown error occurred'
+    if (error?.message) {
+      errorMessage = error.message
+    } else if (error?.shortMessage) {
+      errorMessage = error.shortMessage
+    }
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     }
   }
 }
