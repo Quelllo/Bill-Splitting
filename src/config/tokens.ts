@@ -8,7 +8,7 @@
 export const USDC_ADDRESSES: Record<number, `0x${string}`> = {
   // Arc Testnet
   // TODO: Update with real Arc testnet USDC address from Circle/Arc docs
-  12345: '0x0000000000000000000000000000000000000000', // PLACEHOLDER
+  5042002: '0x0000000000000000000000000000000000000000', // PLACEHOLDER - Need real USDC address
   
   // Ethereum Sepolia
   // TODO: Update with real Sepolia USDC address from Circle docs

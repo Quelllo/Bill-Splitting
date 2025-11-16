@@ -1,6 +1,7 @@
 import WalletConnect from '@/components/bridge/WalletConnect'
 import NetworkStatus from '@/components/bridge/NetworkStatus'
 import BalanceDisplay from '@/components/bridge/BalanceDisplay'
+import USDCAddressFinder from '@/components/bridge/USDCAddressFinder'
 import BridgeForm from '@/components/bridge/BridgeForm'
 import TransferHistory from '@/components/bridge/TransferHistory'
 
@@ -26,6 +27,7 @@ export default function AppPage() {
         <div className="lg:col-span-1 space-y-6">
           <NetworkStatus />
           <BalanceDisplay />
+          <USDCAddressFinder />
         </div>
 
         {/* Right Column - Bridge & History */}

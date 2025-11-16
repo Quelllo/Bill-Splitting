@@ -87,8 +87,7 @@ export const BRIDGE_RPC_URLS: Record<number, string> = {
   43113: process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC || 'https://api.avax-test.network/ext/bc/C/rpc',
   421614: process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc',
   84532: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || 'https://sepolia.base.org',
-  // Arc Testnet
-  // TODO: Add Arc RPC URL once available
+  5042002: process.env.NEXT_PUBLIC_ARC_TESTNET_RPC || 'https://rpc.testnet.arc.network', // Arc Testnet
 }
 
 /**

@@ -6,9 +6,8 @@ import { Chain } from 'viem'
  */
 
 // Arc Testnet Configuration
-// TODO: Replace with actual Arc testnet values from docs
 export const arcTestnet = {
-  id: 12345, // PLACEHOLDER - update with real Arc testnet chain ID
+  id: 5042002,
   name: 'Arc Testnet',
   nativeCurrency: {
     decimals: 6,
@@ -17,16 +16,16 @@ export const arcTestnet = {
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc.arc-testnet.example.com'], // PLACEHOLDER - update with real RPC
+      http: ['https://rpc.testnet.arc.network'],
     },
     public: {
-      http: ['https://rpc.arc-testnet.example.com'], // PLACEHOLDER - update with real RPC
+      http: ['https://rpc.testnet.arc.network'],
     },
   },
   blockExplorers: {
     default: { 
       name: 'Arc Explorer', 
-      url: 'https://explorer.arc-testnet.example.com' // PLACEHOLDER
+      url: 'https://testnet.arcscan.app'
     },
   },
   testnet: true,

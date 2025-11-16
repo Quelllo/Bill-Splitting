@@ -19,7 +19,7 @@ export async function getUSDCBalance(
     const usdcAddress = getUSDCAddress(chain.id)
     
     if (!usdcAddress || usdcAddress === '0x0000000000000000000000000000000000000000') {
-      console.warn(`No USDC address configured for chain ${chain.name} (${chain.id})`)
+      console.warn(`⚠️ No USDC address configured for chain ${chain.name} (${chain.id})`)
       return null
     }
 
@@ -27,9 +27,14 @@ export async function getUSDCBalance(
     const rpcUrl = BRIDGE_RPC_URLS[chain.id] || chain.rpcUrls.default.http[0]
     
     if (!rpcUrl) {
-      console.error(`No RPC URL available for chain ${chain.name} (${chain.id})`)
+      console.error(`❌ No RPC URL available for chain ${chain.name} (${chain.id})`)
       return null
     }
+
+    console.log(`🔍 Fetching USDC balance on ${chain.name} (${chain.id})`)
+    console.log(`   RPC: ${rpcUrl}`)
+    console.log(`   USDC Contract: ${usdcAddress}`)
+    console.log(`   Address: ${address}`)
 
     // Create a public client for reading blockchain data
     const client = createPublicClient({
@@ -37,25 +42,52 @@ export async function getUSDCBalance(
       transport: http(rpcUrl),
     })
 
+    // First, verify the contract exists and is USDC by checking symbol
+    try {
+      const symbol = await client.readContract({
+        address: usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'symbol',
+      })
+      console.log(`   Token Symbol: ${symbol}`)
+      
+      if (symbol !== 'USDC' && symbol !== 'USDC.e') {
+        console.warn(`⚠️ Token symbol is "${symbol}", expected "USDC" for ${chain.name}`)
+      }
+    } catch (symbolError) {
+      console.error(`❌ Failed to read token symbol from ${usdcAddress}:`, symbolError)
+      // Continue anyway - might still be USDC
+    }
+
     // Read the balance from the USDC contract
-    const balance = await client.readContract({
+    const balance = (await client.readContract({
       address: usdcAddress,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [address],
-    })
+    })) as bigint
+
+    console.log(`   Raw balance: ${balance.toString()}`)
 
     // USDC typically has 6 decimals, but we'll read it to be safe
-    const decimals = await client.readContract({
+    const decimals = (await client.readContract({
       address: usdcAddress,
       abi: ERC20_ABI,
       functionName: 'decimals',
-    })
+    })) as number
+
+    console.log(`   Decimals: ${decimals}`)
 
     // Format the balance (convert from wei-like units to readable number)
-    const formattedBalance = formatUnits(balance as bigint, decimals as number)
+    const formattedBalance = formatUnits(balance, decimals)
     
     console.log(`✅ Balance fetched for ${chain.name}: ${formattedBalance} USDC`)
+    
+    // If balance is 0, log it clearly
+    if (formattedBalance === '0.0' || formattedBalance === '0') {
+      console.log(`   ℹ️ Balance is 0 - you may need to get testnet USDC from https://faucet.circle.com`)
+    }
+    
     return formattedBalance
   } catch (error) {
     console.error(`❌ Error fetching USDC balance on ${chain.name} (${chain.id}):`, error)

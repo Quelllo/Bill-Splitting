@@ -1,13 +1,14 @@
 'use client'
 
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { useUSDCBalances } from '@/hooks/useUSDCBalances'
 import { SUPPORTED_NETWORKS, getNetworkInfo } from '@/config/chains'
-import { hasUSDCAddress } from '@/config/tokens'
+import { hasUSDCAddress, getUSDCAddress } from '@/config/tokens'
 
 export default function BalanceDisplay() {
   const { isConnected } = useAccount()
+  const chainId = useChainId()
   const { balances, total, isLoading, error } = useUSDCBalances()
 
   // Show connect wallet message if not connected
@@ -66,29 +67,58 @@ export default function BalanceDisplay() {
         {SUPPORTED_NETWORKS.map((network) => {
           const balance = balances[network.chain.id]
           const isConfigured = hasUSDCAddress(network.chain.id)
+          const usdcAddress = getUSDCAddress(network.chain.id)
+          const isCurrentChain = network.chain.id === chainId
           
           return (
             <div 
               key={network.chain.id}
-              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-100 dark:border-gray-800"
+              className={`flex items-center justify-between p-4 rounded-lg border ${
+                isCurrentChain 
+                  ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800' 
+                  : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800'
+              }`}
             >
               {/* Network Info */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1">
                 <span className="text-2xl">{network.logo}</span>
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">
-                    {network.chain.name}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {network.chain.name}
+                    </div>
+                    {isCurrentChain && (
+                      <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded">
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Chain ID: {network.chain.id}
                   </div>
                   {!isConfigured && (
-                    <div className="text-xs text-orange-600 dark:text-orange-400">
-                      USDC address not configured
+                    <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                      ⚠️ USDC address not configured
+                      {usdcAddress === '0x0000000000000000000000000000000000000000' && (
+                        <span className="block mt-0.5">(Placeholder address - needs real USDC contract)</span>
+                      )}
+                    </div>
+                  )}
+                  {isConfigured && balance !== null && parseFloat(balance) === 0 && isCurrentChain && (
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      ℹ️ Balance is 0 on this network. Get testnet USDC from faucet.
+                    </div>
+                  )}
+                  {isConfigured && balance === null && !isLoading && (
+                    <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      ❌ Failed to fetch balance. Check console for errors.
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Balance */}
-              <div className="text-right">
+              <div className="text-right flex-shrink-0 ml-4">
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
