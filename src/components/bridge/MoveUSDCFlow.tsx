@@ -6,7 +6,8 @@ import { parseUnits, formatUnits } from 'viem'
 import { ArrowDown, Loader2, AlertCircle, CheckCircle2, ExternalLink, Zap } from 'lucide-react'
 import { SUPPORTED_NETWORKS, getNetworkInfo } from '@/config/chains'
 import { getUSDCAddress } from '@/config/tokens'
-import { bridgeUSDC, estimateBridgeTime, isBridgeRouteAvailable } from '@/services/bridgeKitClient'
+import { bridgeUSDC, estimateBridgeTime, isBridgeRouteAvailable, getRouteAvailabilityError } from '@/services/bridgeKitClient'
+import { isCCTPSupported } from '@/config/bridgeKit'
 import { useUSDCBalances } from '@/hooks/useUSDCBalances'
 import { useTransfers } from '@/hooks/useTransfers'
 
@@ -44,10 +45,9 @@ export default function MoveUSDCFlow() {
     }
   }, [connectedChain, fromChainId])
 
-  // Get available "to" networks (exclude selected "from" network)
-  const availableToNetworks = useMemo(() => {
-    return SUPPORTED_NETWORKS.filter(network => network.chain.id !== fromChainId)
-  }, [fromChainId])
+  // Show all networks in "to" dropdown (validation will prevent same-chain bridging)
+  // This allows users to see all options, but they'll get a clear error if they select the same chain
+  const availableToNetworks = SUPPORTED_NETWORKS
 
   // Get balance for selected "from" chain
   const fromChainBalance = useMemo(() => {
@@ -81,8 +81,14 @@ export default function MoveUSDCFlow() {
     const balanceNum = parseFloat(fromChainBalance)
     if (amountNum > balanceNum) return { isValid: false, error: 'Insufficient balance' }
     
+    // Check if same chain selected
+    if (fromChainId === toChainId) {
+      return { isValid: false, error: 'Cannot bridge to the same network. Please select a different destination chain.' }
+    }
+    
+    // Check if route is available (CCTP support)
     if (!isBridgeRouteAvailable(fromChainId, toChainId)) {
-      return { isValid: false, error: 'This route is not available' }
+      return { isValid: false, error: getRouteAvailabilityError(fromChainId, toChainId) }
     }
 
     return { isValid: true, error: null }
@@ -186,22 +192,29 @@ export default function MoveUSDCFlow() {
         <select
           value={fromChainId || ''}
           onChange={(e) => {
-            const chainId = parseInt(e.target.value)
+            const chainId = e.target.value ? parseInt(e.target.value) : null
             setFromChainId(chainId)
-            // Reset "to" if it's the same as "from"
+            // Reset "to" if it's the same as "from" (can't bridge to same chain)
             if (toChainId === chainId) {
               setToChainId(null)
             }
           }}
-          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={status !== 'idle'}
         >
           <option value="">Select source network</option>
-          {SUPPORTED_NETWORKS.map((network) => (
-            <option key={network.chain.id} value={network.chain.id}>
-              {network.logo} {network.chain.name}
-            </option>
-          ))}
+          {SUPPORTED_NETWORKS.length > 0 ? (
+            SUPPORTED_NETWORKS.map((network) => {
+              const hasCCTP = isCCTPSupported(network.chain.id)
+              return (
+                <option key={network.chain.id} value={network.chain.id}>
+                  {network.logo} {network.chain.name} {hasCCTP ? '✓' : '(CCTP not configured)'}
+                </option>
+              )
+            })
+          ) : (
+            <option value="" disabled>No networks available</option>
+          )}
         </select>
         {fromChainId && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -267,16 +280,28 @@ export default function MoveUSDCFlow() {
         <select
           value={toChainId || ''}
           onChange={(e) => setToChainId(parseInt(e.target.value))}
-          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={status !== 'idle'}
         >
           <option value="">Select destination network</option>
-          {availableToNetworks.map((network) => (
-            <option key={network.chain.id} value={network.chain.id}>
-              {network.logo} {network.chain.name}
-            </option>
-          ))}
+          {availableToNetworks.length > 0 ? (
+            availableToNetworks.map((network) => {
+              const hasCCTP = isCCTPSupported(network.chain.id)
+              return (
+                <option key={network.chain.id} value={network.chain.id}>
+                  {network.logo} {network.chain.name} {hasCCTP ? '✓' : '(CCTP not configured)'}
+                </option>
+              )
+            })
+          ) : (
+            <option value="" disabled>No networks available</option>
+          )}
         </select>
+        {fromChainId && toChainId && fromChainId === toChainId && (
+          <p className="text-xs text-orange-600 dark:text-orange-400">
+            ⚠️ Cannot bridge to the same network. Please select a different destination.
+          </p>
+        )}
       </div>
 
       {/* Recipient Address */}

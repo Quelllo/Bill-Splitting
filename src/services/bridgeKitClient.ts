@@ -287,3 +287,36 @@ export function isBridgeRouteAvailable(fromChainId: number, toChainId: number): 
   )
 }
 
+/**
+ * Get a helpful error message explaining why a route is not available
+ * 
+ * @param fromChainId - Source chain ID
+ * @param toChainId - Destination chain ID
+ * @returns Error message explaining the issue
+ */
+export function getRouteAvailabilityError(
+  fromChainId: number,
+  toChainId: number
+): string {
+  if (fromChainId === toChainId) {
+    return 'Source and destination chains must be different'
+  }
+
+  const fromSupported = isCCTPSupported(fromChainId)
+  const toSupported = isCCTPSupported(toChainId)
+
+  if (!fromSupported && !toSupported) {
+    return `${getChainName(fromChainId)} and ${getChainName(toChainId)} are not configured for Circle CCTP yet`
+  }
+
+  if (!fromSupported) {
+    return `${getChainName(fromChainId)} is not configured for Circle CCTP. Try using Ethereum Sepolia, Base Sepolia, Avalanche Fuji, or Arbitrum Sepolia as the source.`
+  }
+
+  if (!toSupported) {
+    return `${getChainName(toChainId)} is not configured for Circle CCTP. Try using Ethereum Sepolia, Base Sepolia, Avalanche Fuji, or Arbitrum Sepolia as the destination.`
+  }
+
+  return 'This route is not available'
+}
+

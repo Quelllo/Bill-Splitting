@@ -124,7 +124,7 @@ export function getChainName(chainId: number): string {
     43113: 'Avalanche Fuji',
     421614: 'Arbitrum Sepolia',
     84532: 'Base Sepolia',
-    12345: 'Arc Testnet',
+    5042002: 'Arc Testnet',
   }
   return names[chainId] || `Chain ${chainId}`
 }
