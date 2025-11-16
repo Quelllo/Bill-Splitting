@@ -13,7 +13,7 @@
  * All CCTP configuration is managed via Chain IDs in src/config/bridgeKit.ts:
  * 
  * - Ethereum Sepolia (11155111): CCTP Domain 0
- * - Arc Testnet (5042002): CCTP Domain 26
+ * - Base Sepolia, Avalanche Fuji, Arbitrum Sepolia: See bridgeKit.ts for domain IDs
  * 
  * The bridgeUSDC function uses Chain IDs to look up:
  * - CIRCLE_DOMAIN_IDS: Maps Chain ID → CCTP Domain ID
@@ -22,6 +22,24 @@
  * - USDC_ADDRESSES (from tokens.ts): Maps Chain ID → USDC token contract
  * 
  * All CCTP contracts are called directly - no external Bridge Kit SDK needed.
+ * 
+ * ⚠️ ARC TESTNET LIMITATION - DO NOT USE THIS FUNCTION WITH ARC:
+ * 
+ * Arc Testnet (Chain ID 5042002) is NOT supported as a CCTP source or destination in this function.
+ * 
+ * Why: Arc uses native USDC (0x3600000000000000000000000000000000000000) as its gas token.
+ * While this is the official USDC address from Circle's documentation, the native USDC token
+ * operates differently from standard ERC-20 USDC tokens:
+ * 
+ * 1. Native USDC may not be registered with TokenMessengerV2 for CCTP bridging
+ * 2. Native tokens have different mechanics than standard ERC-20 tokens
+ * 3. Arc's native USDC uses 18 decimals internally but 6 decimals for ERC-20 interface
+ * 4. The depositForBurn() function reverts when called with Arc's native USDC
+ * 
+ * This is a temporary testnet limitation. For Arc ↔ Arc transfers, use arcLocalTransfer.ts instead.
+ * For CCTP bridging demos, use Ethereum Sepolia ↔ Base Sepolia or other supported testnets.
+ * 
+ * The UI prevents Arc from being selected for cross-chain CCTP transfers and shows clear messages.
  */
 
 import { 
@@ -119,6 +137,10 @@ export interface BridgeResult {
 /**
  * Bridge USDC from one chain to another using Circle's CCTP
  * 
+ * ⚠️ IMPORTANT: This function should NOT be called with Arc Testnet as source or destination.
+ * Arc's native USDC is not compatible with CCTP bridging (see file header for details).
+ * The UI prevents this, but adding a runtime check for safety.
+ * 
  * @param params - Bridge parameters
  * @param walletClient - Viem wallet client (from wagmi)
  * @returns Bridge result with transaction hash
@@ -128,6 +150,24 @@ export async function bridgeUSDC(
   walletClient: WalletClient
 ): Promise<BridgeResult> {
   const { fromChainId, toChainId, amount, recipient, sourceChain } = params
+
+  // Arc Testnet Chain ID
+  const ARC_TESTNET_CHAIN_ID = 5042002
+
+  // Safety check: Prevent CCTP operations with Arc Testnet
+  if (fromChainId === ARC_TESTNET_CHAIN_ID) {
+    return {
+      success: false,
+      error: 'Cross-chain transfers from Arc via CCTP are not available. Arc\'s native USDC token is not compatible with CCTP bridging. For Arc → Arc transfers, use local transfers instead.',
+    }
+  }
+
+  if (toChainId === ARC_TESTNET_CHAIN_ID) {
+    return {
+      success: false,
+      error: 'Cross-chain transfers to Arc via CCTP are not available. Arc\'s native USDC token is not compatible with CCTP bridging.',
+    }
+  }
 
   try {
     // Validation

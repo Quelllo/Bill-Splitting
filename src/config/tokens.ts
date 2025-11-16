@@ -19,8 +19,10 @@ export const USDC_ADDRESSES: Record<number, `0x${string}`> = {
   // Reference: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
   11155111: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
   
-  // Base Sepolia
+  // Base Sepolia - VERIFIED
   // Circle's official testnet USDC for Base Sepolia
+  // Reference: https://developers.circle.com/stablecoins/docs/usdc-on-test-networks
+  // This is the primary CCTP demo route: Sepolia ↔ Base Sepolia
   84532: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
   
   // Avalanche Fuji
@@ -76,6 +78,16 @@ export const ERC20_ABI = [
     ],
     name: 'allowance',
     outputs: [{ name: '', type: 'uint256' }],
+    type: 'function',
+  },
+  {
+    constant: false,
+    inputs: [
+      { name: '_to', type: 'address' },
+      { name: '_value', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ name: '', type: 'bool' }],
     type: 'function',
   },
 ] as const

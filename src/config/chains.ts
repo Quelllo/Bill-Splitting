@@ -148,7 +148,7 @@ export const SUPPORTED_NETWORKS: NetworkInfo[] = [
   },
   {
     chain: baseSepolia,
-    description: 'Base L2 testnet – fast and low-cost transactions',
+    description: 'Base Sepolia – Coinbase L2 testnet, fast finality, fully CCTP-enabled',
     logo: '🔵',
     faucetUrl: 'https://portal.cdp.coinbase.com/products/faucet',
   },

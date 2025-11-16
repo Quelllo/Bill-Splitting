@@ -8,6 +8,8 @@ import { SUPPORTED_NETWORKS, getNetworkInfo } from '@/config/chains'
 import { getUSDCAddress } from '@/config/tokens'
 import { bridgeUSDC, estimateBridgeTime, isBridgeRouteAvailable, getRouteAvailabilityError } from '@/services/bridgeKitClient'
 import { isCCTPSupported } from '@/config/bridgeKit'
+import { transferLocallyOnArc, canTransferLocallyOnArc } from '@/services/arcLocalTransfer'
+import { arcTestnet } from '@/config/chains'
 import { useUSDCBalances } from '@/hooks/useUSDCBalances'
 import { useTransfers } from '@/hooks/useTransfers'
 
@@ -88,6 +90,16 @@ export default function MoveUSDCFlow() {
     setAmount(fromChainBalance)
   }
 
+  // Check if this is an Arc-related transfer
+  const isArcTransfer = useMemo(() => {
+    return fromChainId === arcTestnet.id || toChainId === arcTestnet.id
+  }, [fromChainId, toChainId])
+
+  // Check if this is Arc → Arc (local transfer)
+  const isArcLocalTransfer = useMemo(() => {
+    return canTransferLocallyOnArc(fromChainId || 0, toChainId || 0)
+  }, [fromChainId, toChainId])
+
   // Validate form
   const validation = useMemo(() => {
     if (!isConnected) return { isValid: false, error: 'Please connect your wallet' }
@@ -100,12 +112,35 @@ export default function MoveUSDCFlow() {
     const balanceNum = parseFloat(fromChainBalance)
     if (amountNum > balanceNum) return { isValid: false, error: 'Insufficient balance' }
     
-    // Check if same chain selected
+    // Check if Arc is involved in a cross-chain transfer
+    // Arc → Arc is allowed (local transfer), but Arc → Other or Other → Arc is not allowed via CCTP
+    if (fromChainId === arcTestnet.id && toChainId !== arcTestnet.id) {
+      // Arc → Other chain: CCTP not available
+      return { 
+        isValid: false, 
+        error: 'Cross-chain transfers from Arc via CCTP are not available on testnet yet. Try bridging from Sepolia instead, or transfer locally on Arc (Arc → Arc).' 
+      }
+    }
+    
+    if (toChainId === arcTestnet.id && fromChainId !== arcTestnet.id) {
+      // Other chain → Arc: CCTP not available
+      return { 
+        isValid: false, 
+        error: 'Cross-chain transfers to Arc via CCTP are not available on testnet yet. Try bridging from Sepolia to another testnet instead.' 
+      }
+    }
+    
+    // Check if same chain selected (this is OK for Arc → Arc, but not for other chains)
     if (fromChainId === toChainId) {
+      if (fromChainId === arcTestnet.id) {
+        // Arc → Arc: Allow local transfer
+        return { isValid: true, error: null }
+      }
+      // Other chains: same-chain bridging not supported
       return { isValid: false, error: 'Cannot bridge to the same network. Please select a different destination chain.' }
     }
     
-    // Check if route is available (CCTP support)
+    // Check if route is available (CCTP support) for non-Arc transfers
     if (!isBridgeRouteAvailable(fromChainId, toChainId)) {
       return { isValid: false, error: getRouteAvailabilityError(fromChainId, toChainId) }
     }
@@ -164,7 +199,7 @@ export default function MoveUSDCFlow() {
       return
     }
 
-    console.log('✅ All checks passed, starting bridge...')
+    console.log('✅ All checks passed, starting transfer...')
     setStatus('preparing')
     setErrorMessage('')
     setTxHash(null)
@@ -179,6 +214,48 @@ export default function MoveUSDCFlow() {
 
       setStatus('awaiting_approval')
 
+      // Check if this is an Arc → Arc local transfer
+      if (isArcLocalTransfer) {
+        console.log('🌐 Performing local Arc transfer (Arc → Arc)...')
+        
+        const result = await transferLocallyOnArc(
+          {
+            amount,
+            recipient: recipient as `0x${string}`,
+          },
+          client
+        )
+
+        if (result.success && result.txHash) {
+          setTxHash(result.txHash)
+          setStatus('completed')
+          
+          // Save transfer to history
+          const explorerUrl = fromNetwork.chain.blockExplorers?.default.url
+            ? `${fromNetwork.chain.blockExplorers.default.url}/tx/${result.txHash}`
+            : undefined
+          
+          addTransfer({
+            fromChainId,
+            fromChainName: fromNetwork.chain.name,
+            toChainId,
+            toChainName: toNetwork.chain.name,
+            amount,
+            recipient: recipient as `0x${string}`,
+            status: 'completed',
+            txHash: result.txHash,
+            explorerUrl,
+          })
+        } else {
+          setStatus('error')
+          setErrorMessage(result.error || 'Local transfer failed')
+        }
+        return
+      }
+
+      // For non-Arc transfers, use CCTP bridge
+      console.log('🌉 Performing CCTP bridge...')
+      
       const result = await bridgeUSDC(
         {
           fromChainId,

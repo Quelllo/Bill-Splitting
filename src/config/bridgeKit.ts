@@ -43,8 +43,10 @@ export const CIRCLE_DOMAIN_IDS: Record<number, number> = {
   // Arbitrum Sepolia
   421614: 3, // TODO: Verify this domain ID from Circle docs
   
-  // Base Sepolia
-  84532: 6, // TODO: Verify this domain ID from Circle docs
+  // Base Sepolia - VERIFIED
+  // Circle CCTP Domain ID for Base Sepolia testnet
+  // Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract
+  84532: 6,
 }
 
 /**
@@ -66,7 +68,10 @@ export const MESSAGE_TRANSMITTER_ADDRESSES: Record<number, `0x${string}`> = {
   
   43113: '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79', // Avalanche Fuji - TODO: Verify
   421614: '0xaCF1ceeF35caAc005e15888dDb8A3515C41B4872', // Arbitrum Sepolia - TODO: Verify
-  84532: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD', // Base Sepolia - TODO: Verify
+  // Base Sepolia - VERIFIED
+  // Circle CCTP MessageTransmitter contract for Base Sepolia
+  // Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract
+  84532: '0x7865fAfC2db2093669d92c0F33AeEF291086BEFD',
 }
 
 /**
@@ -88,7 +93,10 @@ export const TOKEN_MESSENGER_ADDRESSES: Record<number, `0x${string}`> = {
   
   43113: '0xeb08f243e5d3fcff26a9e38ae5520a669f4019d0', // Avalanche Fuji - TODO: Verify
   421614: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5', // Arbitrum Sepolia - TODO: Verify
-  84532: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5', // Base Sepolia - TODO: Verify
+  // Base Sepolia - VERIFIED
+  // Circle CCTP TokenMessenger contract for Base Sepolia
+  // Reference: https://developers.circle.com/stablecoins/docs/cctp-protocol-contract
+  84532: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5',
 }
 
 /**
